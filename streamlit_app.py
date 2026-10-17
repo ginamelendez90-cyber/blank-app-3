@@ -1,5 +1,4 @@
 import streamlit as st
-import plotly.express as px
 from utils import (
     get_shib_total_supply,
     get_burn_address_balance,
@@ -15,18 +14,6 @@ st.set_page_config(
     page_icon="🔥",
     layout="wide"
 )
-
-# Estilos visuales personalizados
-st.markdown("""
-    <style>
-    .stMetric {
-        background-color: #1e222d;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #ff4b4b;
-    }
-    </style>
-""", unsafe_allow_html=True)
 
 st.title("🔥 Portal Comunitario de Quema de Shiba Inu")
 st.subheader("Incentivando la reducción del suministro para fortalecer el ecosistema SHIB")
@@ -89,41 +76,34 @@ if btn_verify:
             else:
                 st.error(res["message"])
 
-# --- SECCIÓN 3: Tabla de Líderes (Leaderboard) ---
+# --- SECCIÓN 3: Tabla de Líderes y Gráfico Nativo ---
 st.divider()
 st.header("🏆 Tabla de Líderes de la Comunidad")
 
 df_leaderboard = load_leaderboard()
 
 if not df_leaderboard.empty:
-    # Agrupar aportes por usuario/billetera para mostrar el ranking acumulado
     ranking_df = (
-        df_leaderboard.groupby(["Alias", "Billetera"])["Monto_Quemado_SHIB"]
+        df_leaderboard.groupby("Alias")["Monto_Quemado_SHIB"]
         .sum()
         .reset_index()
         .sort_values(by="Monto_Quemado_SHIB", ascending=False)
     )
-    ranking_df.columns = ["Alias", "Dirección Billetera", "Total SHIB Quemados"]
 
-    col_chart, col_table = st.columns([1, 1])
+    col_table, col_chart = st.columns(2)
 
     with col_table:
-        st.subheader("Top Quemadores")
+        st.subheader("Top Contribuyentes")
         st.dataframe(
-            ranking_df.style.format({"Total SHIB Quemados": "{:,.0f}"}),
+            ranking_df.style.format({"Monto_Quemado_SHIB": "{:,.0f}"}),
             use_container_width=True,
             hide_index=True
         )
 
     with col_chart:
-        st.subheader("Distribución de Quemas Comunitarias")
-        fig = px.pie(
-            ranking_df.head(10),
-            values="Total SHIB Quemados",
-            names="Alias",
-            title="Top 10 Contribuyentes",
-            hole=0.4
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        st.subheader("Visualización de Quemas")
+        # Usamos el gráfico de barras nativo de Streamlit (sin librerías externas)
+        chart_data = ranking_df.set_index("Alias")
+        st.bar_chart(chart_data)
 else:
     st.info("Aún no hay registros en esta sesión. ¡Sé el primero en quemar SHIB y aparecer en el ranking!")
