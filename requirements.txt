@@ -1,5 +1,5 @@
 streamlit
-web3
+requests
 pandas
 plotly
-requests
+web3
