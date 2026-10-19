@@ -1,4 +1,7 @@
 streamlit
-requests
-pandas
-plotly
+moviepy
+edge-tts
+openai-whisper
+google-genai
+google-api-python-client
+google-auth-oauthlib
