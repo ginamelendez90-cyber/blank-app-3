@@ -1,3 +1,23 @@
+import sys
+import subprocess
+
+# Instalación automática de emergencia si faltan paquetes en el entorno
+def asegurar_paquete( paquete_pip, nombre_import ):
+    try:
+        __import__(nombre_import)
+    except ImportError:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", paquete_pip])
+
+# Aseguramos todas las dependencias críticas antes de importar
+asegurar_paquete("streamlit", "streamlit")
+asegurar_paquete("edge-tts", "edge_tts")
+asegurar_paquete("google-genai", "google.genai")
+asegurar_paquete("moviepy", "moviepy")
+asegurar_paquete("google-api-python-client", "googleapiclient")
+asegurar_paquete("google-auth-oauthlib", "google_auth_oauthlib")
+asegurar_paquete("feedparser", "feedparser")
+
+# Ahora importamos con total seguridad
 import streamlit as st
 import asyncio
 import os
