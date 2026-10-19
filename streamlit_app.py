@@ -1,37 +1,9 @@
-import sys
-import subprocess
-
-# --- 1. INSTALACIÓN FORZADA DE PAQUETES ---
-REQUERIDOS = [
-    "edge-tts",
-    "feedparser",
-    "moviepy",
-    "openai-whisper",
-    "google-genai",
-    "google-api-python-client",
-    "google-auth-oauthlib"
-]
-
-def instalar_paquetes():
-    for paquete in REQUERIDOS:
-        try:
-            subprocess.run(
-                [sys.executable, "-m", "pip", "show", paquete],
-                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
-        except subprocess.CalledProcessError:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", paquete])
-
-instalar_paquetes()
-
-# --- 2. IMPORTS NORMALES DE LA APLICACIÓN ---
 import streamlit as st
 import asyncio
 import os
 import edge_tts
-import whisper
 from google import genai
-from moviepy.editor import AudioFileClip, ImageClip, VideoFileClip, TextClip, CompositeVideoClip
+from moviepy.editor import AudioFileClip, ImageClip, VideoFileClip
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google.oauth2.credentials import Credentials
@@ -47,7 +19,7 @@ st.set_page_config(
 os.makedirs("temp", exist_ok=True)
 
 st.title("🚀 Estudio Automatizado de YouTube con IA")
-st.write("Genera guiones, crea videos con voces y subtítulos, y súbelos directamente a tu canal de YouTube.")
+st.write("Genera guiones, crea videos con voces y súbelos directamente a tu canal de YouTube.")
 
 # --- BARRA LATERAL: Configuración General y Credenciales ---
 st.sidebar.header("🔑 Credenciales y Configuración")
@@ -112,8 +84,7 @@ with tab2:
         tipo_fondo = st.radio("Fondo visual:", ["Imagen", "Video"], horizontal=True)
         archivo_fondo = st.file_uploader(f"Sube tu archivo de {tipo_fondo.lower()}:", type=["jpg", "jpeg", "png", "mp4"])
     with col_b:
-        st.write("### Opciones de Edición")
-        incluir_subtitulos = st.checkbox("🔤 Generar subtítulos automáticos (Whisper)", value=False, help="Añade subtítulos dinámicos sincronizados con la voz.")
+        st.info("💡 Consejo: Asegúrate de que el fondo visual tenga buena calidad para mantener la retención de audiencia en YouTube.")
 
     if st.button("🚀 Renderizar Video Final", type="primary", use_container_width=True):
         if not guion_texto.strip():
@@ -151,32 +122,6 @@ with tab2:
                             video_clip = video_clip.subclip(0, duracion)
 
                     video_final = video_clip.set_audio(audio_clip)
-
-                    # 3. Subtítulos opcionales con Whisper
-                    if incluir_subtitulos:
-                        st.info("🔄 Transcribiendo audio para subtítulos dinámicos con Whisper...")
-                        model = whisper.load_model("base")
-                        result = model.transcribe(audio_path, language="es")
-                        
-                        txt_clips = [video_final]
-                        for segment in result["segments"]:
-                            start = segment["start"]
-                            end = segment["end"]
-                            text = segment["text"].strip()
-                            
-                            txt_clip = TextClip(
-                                text, 
-                                fontsize=32, 
-                                color='white', 
-                                bg_color='rgba(0,0,0,0.6)', 
-                                font='Arial-Bold', 
-                                size=(video_final.w - 100, None), 
-                                method='caption'
-                            )
-                            txt_clip = txt_clip.set_start(start).set_end(end).set_position(('center', 'bottom'))
-                            txt_clips.append(txt_clip)
-                        
-                        video_final = CompositeVideoClip(txt_clips)
 
                     video_final.write_videofile(
                         output_video_path,
