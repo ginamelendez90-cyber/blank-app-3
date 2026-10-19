@@ -1,3 +1,30 @@
+import sys
+import subprocess
+
+# --- 1. INSTALACIÓN FORZADA DE PAQUETES ---
+REQUERIDOS = [
+    "edge-tts",
+    "feedparser",
+    "moviepy",
+    "openai-whisper",
+    "google-genai",
+    "google-api-python-client",
+    "google-auth-oauthlib"
+]
+
+def instalar_paquetes():
+    for paquete in REQUERIDOS:
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "show", paquete],
+                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+        except subprocess.CalledProcessError:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", paquete])
+
+instalar_paquetes()
+
+# --- 2. IMPORTS NORMALES DE LA APLICACIÓN ---
 import streamlit as st
 import asyncio
 import os
@@ -9,17 +36,18 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google.oauth2.credentials import Credentials
 
-# Configuración de la página
+# Configuración de la página en Streamlit
 st.set_page_config(
     page_title="Estudio Automatizado de YouTube",
     page_icon="🚀",
     layout="wide"
 )
 
+# Crear directorio temporal si no existe
 os.makedirs("temp", exist_ok=True)
 
 st.title("🚀 Estudio Automatizado de YouTube con IA")
-st.write("Genera guiones, crea videos con voces y subtítulos, y súbelos directamente a tu canal.")
+st.write("Genera guiones, crea videos con voces y subtítulos, y súbelos directamente a tu canal de YouTube.")
 
 # --- BARRA LATERAL: Configuración General y Credenciales ---
 st.sidebar.header("🔑 Credenciales y Configuración")
@@ -54,35 +82,38 @@ with tab1:
             with st.spinner("🤖 Escribiendo guion optimizado para YouTube..."):
                 try:
                     client = genai.Client(api_key=gemini_api_key)
-                    prompt = f"Escribe un guion para un video corto de YouTube sobre: '{tema_guion}'. El tono debe ser {tono_guion}. Hazlo atractivo, con gancho inicial (hook) y llamada a la acción al final. No pongas acotaciones de escena entre corchetes, solo el texto narrativo directo."
+                    prompt = (
+                        f"Escribe un guion para un video de YouTube sobre: '{tema_guion}'. "
+                        f"El tono debe ser {tono_guion}. Hazlo atractivo, con un gancho inicial fuerte y llamada a la acción al final. "
+                        f"No pongas acotaciones de escena entre corchetes, solo escribe el texto narrativo directo para leer."
+                    )
                     
                     response = client.models.generate_content(
                         model='gemini-2.5-flash',
                         contents=prompt,
                     )
                     st.session_state['guion_generado'] = response.text
-                    st.success("¡Guion generado con éxito! Ve a la pestaña 'Editor y Renderizado' para usarlo.")
+                    st.success("¡Guion generado con éxito! Ve a la pestaña 'Editor y Renderizado' para continuar.")
                 except Exception as e:
                     st.error(f"Error al generar guion: {e}")
 
     if 'guion_generado' in st.session_state:
         st.text_area("Guion Actual:", value=st.session_state['guion_generado'], height=200)
 
-# --- PESTAÑA 2: EDITOR Y RENDERIZADO (Con Subtítulos Opción 1) ---
+# --- PESTAÑA 2: EDITOR Y RENDERIZADO DE VIDEO ---
 with tab2:
     st.header("Ensamblaje y Renderizado de Video")
     
-    # Cargar guion previo si existe
     guion_por_defecto = st.session_state.get('guion_generado', '')
     guion_texto = st.text_area("Guion final para narrar:", value=guion_por_defecto, height=150)
     
     col_a, col_b = st.columns(2)
     with col_a:
         tipo_fondo = st.radio("Fondo visual:", ["Imagen", "Video"], horizontal=True)
-        archivo_fondo = st.file_uploader(f"Sube tu archivo de {tipo_fondo.lower()}:", type=["jpg", "png", "mp4"])
+        archivo_fondo = st.file_uploader(f"Sube tu archivo de {tipo_fondo.lower()}:", type=["jpg", "jpeg", "png", "mp4"])
     with col_b:
         st.write("### Opciones de Edición")
-        incluir_subtitulos = st.checkbox("🔤 Generar subtítulos automáticos (Whisper)", value=False, help="Puede tardar unos segundos extra según la duración.")
+        incluir_subtitulos = st.checkbox("🔤 Generar subtítulos automáticos (Whisper)", value=False, help="Añade subtítulos dinámicos sincronizados con la voz.")
 
     if st.button("🚀 Renderizar Video Final", type="primary", use_container_width=True):
         if not guion_texto.strip():
@@ -93,14 +124,14 @@ with tab2:
             output_video_path = "temp/video_final.mp4"
             audio_path = "temp/narracion.mp3"
             
-            # 1. Generar Audio con Edge-TTS
-            with st.spinner("🎙️ Generando voz en off..."):
+            # 1. Generación de Voz en Off con Edge-TTS
+            with st.spinner("🎙️ Generando voz en off con Edge-TTS..."):
                 async def generate_tts(text, voice, output_path):
                     communicate = edge_tts.Communicate(text, voice)
                     await communicate.save(output_path)
                 asyncio.run(generate_tts(guion_texto, voice_id, audio_path))
 
-            # 2. Ensamblar Video con MoviePy
+            # 2. Ensamblaje de Video con MoviePy
             with st.spinner("🎬 Procesando video y aplicando efectos..."):
                 try:
                     fondo_path = os.path.join("temp", archivo_fondo.name)
@@ -121,9 +152,9 @@ with tab2:
 
                     video_final = video_clip.set_audio(audio_clip)
 
-                    # Subtítulos automáticos con Whisper (Opción 1)
+                    # 3. Subtítulos opcionales con Whisper
                     if incluir_subtitulos:
-                        st.info("🔄 Transcribiendo audio para subtítulos con Whisper...")
+                        st.info("🔄 Transcribiendo audio para subtítulos dinámicos con Whisper...")
                         model = whisper.load_model("base")
                         result = model.transcribe(audio_path, language="es")
                         
@@ -133,8 +164,15 @@ with tab2:
                             end = segment["end"]
                             text = segment["text"].strip()
                             
-                            # Crear clip de texto para cada segmento
-                            txt_clip = TextClip(text, fontsize=32, color='white', bg_color='rgba(0,0,0,0.6)', font='Arial-Bold', size=(video_final.w - 100, None), method='caption')
+                            txt_clip = TextClip(
+                                text, 
+                                fontsize=32, 
+                                color='white', 
+                                bg_color='rgba(0,0,0,0.6)', 
+                                font='Arial-Bold', 
+                                size=(video_final.w - 100, None), 
+                                method='caption'
+                            )
                             txt_clip = txt_clip.set_start(start).set_end(end).set_position(('center', 'bottom'))
                             txt_clips.append(txt_clip)
                         
@@ -155,12 +193,18 @@ with tab2:
                     st.video(output_video_path)
 
                     with open(output_video_path, "rb") as file:
-                        st.download_button("📥 Descargar Video", data=file, file_name="youtube_auto.mp4", mime="video/mp4", use_container_width=True)
+                        st.download_button(
+                            "📥 Descargar Video (.mp4)", 
+                            data=file, 
+                            file_name="youtube_auto.mp4", 
+                            mime="video/mp4", 
+                            use_container_width=True
+                        )
 
                 except Exception as e:
                     st.error(f"❌ Error en el renderizado: {str(e)}")
 
-# --- PESTAÑA 3: SUBIDA DIRECTA A YOUTUBE (Opción 3) ---
+# --- PESTAÑA 3: SUBIDA DIRECTA A YOUTUBE ---
 with tab3:
     st.header("Subida Automática a YouTube")
     st.write("Sube el video generado directamente a tu canal utilizando la YouTube Data API.")
@@ -177,9 +221,8 @@ with tab3:
         elif not client_secrets_file:
             st.error("⚠️ Sube tu archivo `client_secret.json` de Google Cloud Console.")
         else:
-            with st.spinner("📤 Conectando con YouTube y subiendo el archivo..."):
+            with st.spinner("📤 Conectando con YouTube API y subiendo el archivo..."):
                 try:
-                    # Guardar temporalmente el archivo de secretos
                     secret_path = "temp/client_secret.json"
                     with open(secret_path, "wb") as f:
                         f.write(client_secrets_file.getbuffer())
@@ -188,7 +231,6 @@ with tab3:
                     
                     SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
                     
-                    # Nota en entorno local abrirá flujo de autenticación en consola/navegador
                     flow = InstalledAppFlow.from_client_secrets_file(secret_path, SCOPES)
                     credentials = flow.run_local_server(port=0)
                     
@@ -199,7 +241,7 @@ with tab3:
                             "title": yt_titulo,
                             "description": yt_descripcion,
                             "tags": ["ia", "shorts", "automatizado"],
-                            "categoryId": "22"  # People & Blogs
+                            "categoryId": "22"  # Categoría: Gente y Blogs
                         },
                         "status": {
                             "privacyStatus": yt_privacidad
@@ -217,7 +259,7 @@ with tab3:
                     while response is None:
                         status, response = request.next_chunk()
 
-                    st.success(f"🎉 ¡Video subido con éxito! ID del video: {response.get('id')}")
+                    st.success(f"🎉 ¡Video subido con éxito!")
                     st.markdown(f"🔗 [Ver en YouTube](https://youtu.be/{response.get('id')})")
 
                 except Exception as e:
